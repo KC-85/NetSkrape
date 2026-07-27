@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netskrape"
+version = "0.1.0"
+description = "A production-oriented web scraping toolkit."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-only"
+dependencies = [
+    "beautifulsoup4>=4.14,<5",
+    "httpx>=0.28,<1",
+    "lxml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+browser = ["playwright>=1.60,<2"]
+dev = [
+    "pytest>=9,<10",
+    "pytest-asyncio>=1.4,<2",
+]
+
+[project.scripts]
+netskrape = "netskrape.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+asyncio_mode = "auto"
+pythonpath = ["src"]
+testpaths = ["tests"]
