@@ -1,2 +1,1 @@
 """Persistence interfaces and implementations."""
-

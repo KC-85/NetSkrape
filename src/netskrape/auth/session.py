@@ -1,2 +1,1 @@
 """Authenticated session lifecycle."""
-

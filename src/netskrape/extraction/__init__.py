@@ -1,2 +1,1 @@
 """Content extraction and normalization."""
-
