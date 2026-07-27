@@ -17,7 +17,9 @@ def test_from_env_uses_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.log_level is LogLevel.INFO
 
 
-def test_from_env_normalizes_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_from_env_normalizes_log_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Log levels are accepted without requiring uppercase input."""
     monkeypatch.setenv("NETSKRAPE_LOG_LEVEL", "debug")
 
