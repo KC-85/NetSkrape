@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local NetSkrape database
+/netskrape.db
+/netskrape.db-journal
+/netskrape.db-shm
+/netskrape.db-wal
