@@ -1,11 +1,15 @@
 """Tests for page repository contracts."""
 
+import asyncio
 from collections.abc import Iterable
 
 import pytest
 
 from netskrape.extraction.models import ExtractedPage
-from netskrape.storage.repositories import PageRepository
+from netskrape.storage.repositories import (
+    InMemoryPageRepository,
+    PageRepository,
+)
 
 
 class RecordingRepository:
@@ -45,3 +49,60 @@ async def test_repository_contract_accepts_compatible_implementation() -> None:
     await persist_pages(repository, [second])
 
     assert repository.pages == [first, second]
+
+
+@pytest.mark.asyncio
+async def test_in_memory_repository_preserves_historical_snapshots() -> None:
+    """Repeated URLs remain separate crawl snapshots."""
+    repository = InMemoryPageRepository()
+    first = ExtractedPage(
+        url="https://example.com",
+        status_code=200,
+        text="first",
+    )
+    second = ExtractedPage(
+        url="https://example.com",
+        status_code=200,
+        text="second",
+    )
+
+    await repository.save(first)
+    await repository.save(second)
+
+    assert await repository.all() == (first, second)
+
+
+@pytest.mark.asyncio
+async def test_in_memory_repository_accepts_generator_batches() -> None:
+    """Batch writes materialize one-shot iterables before storage."""
+    repository = InMemoryPageRepository()
+    pages = (
+        ExtractedPage(
+            url=f"https://example.com/{number}",
+            status_code=200,
+        )
+        for number in range(3)
+    )
+
+    await repository.save_many(pages)
+
+    assert len(await repository.all()) == 3
+
+
+@pytest.mark.asyncio
+async def test_in_memory_repository_supports_concurrent_writes() -> None:
+    """Concurrent callers do not lose page snapshots."""
+    repository = InMemoryPageRepository()
+    pages = [
+        ExtractedPage(
+            url=f"https://example.com/{number}",
+            status_code=200,
+        )
+        for number in range(10)
+    ]
+
+    await asyncio.gather(
+        *(repository.save(page) for page in pages)
+    )
+
+    assert await repository.all() == tuple(pages)
