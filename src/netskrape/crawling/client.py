@@ -1,6 +1,7 @@
 """Asynchronous HTTP transport for scraper requests."""
 
 import asyncio
+import logging
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from time import monotonic
@@ -19,9 +20,12 @@ from netskrape.crawling.policies import (
     RobotsPolicy,
 )
 from netskrape.exceptions import FetchError
+from netskrape.logging import safe_url
 
 
 MAX_REDIRECTS = 10
+
+logger = logging.getLogger(__name__)
 
 
 class ScraperClient:
@@ -91,7 +95,8 @@ class ScraperClient:
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
             raise FetchError(
-                f"HTTP {response.status_code} while fetching {url}"
+                f"HTTP {response.status_code} while fetching "
+                f"{safe_url(url)}"
             ) from error
         return response
 
@@ -107,13 +112,18 @@ class ScraperClient:
             if not self._crawl_policy.allows(current_url, depth=depth):
                 raise FetchError(
                     "URL is outside the permitted crawl scope: "
-                    f"{current_url}"
+                    f"{safe_url(current_url)}"
                 )
 
             rules = await self._robots_rules_for(current_url)
             if not self._robots_policy.allows(current_url, rules):
+                logger.warning(
+                    "robots.txt denied request to %s",
+                    safe_url(current_url),
+                )
                 raise FetchError(
-                    f"robots.txt does not permit fetching: {current_url}"
+                    "robots.txt does not permit fetching: "
+                    f"{safe_url(current_url)}"
                 )
 
             response = await self._request_with_retries(current_url)
@@ -123,11 +133,14 @@ class ScraperClient:
             location = response.headers.get("Location")
             if location is None:
                 raise FetchError(
-                    f"Redirect response has no Location header: {current_url}"
+                    "Redirect response has no Location header: "
+                    f"{safe_url(current_url)}"
                 )
             current_url = urljoin(str(response.url), location)
 
-        raise FetchError(f"Too many redirects while fetching {url}")
+        raise FetchError(
+            f"Too many redirects while fetching {safe_url(url)}"
+        )
 
     async def _request_with_retries(self, url: str) -> httpx.Response:
         """Perform a GET request and retry transient failures."""
@@ -138,9 +151,16 @@ class ScraperClient:
             except httpx.RequestError as error:
                 if attempt >= self._retry_policy.max_retries:
                     raise FetchError(
-                        f"Failed to fetch {url}: {error}"
+                        f"Failed to fetch {safe_url(url)}: "
+                        f"{type(error).__name__}"
                     ) from error
-                await asyncio.sleep(self._retry_policy.delay_for(attempt))
+                delay = self._retry_policy.delay_for(attempt)
+                logger.warning(
+                    "Request error for %s; retrying in %.2f seconds",
+                    safe_url(url),
+                    delay,
+                )
+                await asyncio.sleep(delay)
                 attempt += 1
                 continue
 
@@ -153,6 +173,12 @@ class ScraperClient:
             delay = self._retry_after_seconds(response)
             if delay is None:
                 delay = self._retry_policy.delay_for(attempt)
+            logger.warning(
+                "HTTP %d from %s; retrying in %.2f seconds",
+                response.status_code,
+                safe_url(url),
+                delay,
+            )
             await asyncio.sleep(delay)
             attempt += 1
 

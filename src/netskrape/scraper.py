@@ -1,10 +1,14 @@
 """High-level scraping orchestration."""
 
+import logging
 from collections.abc import Iterable
 from typing import Protocol
 
 from netskrape.crawling.scheduler import CrawlResult
 from netskrape.storage.repositories import PageRepository
+
+
+logger = logging.getLogger(__name__)
 
 
 class Scheduler(Protocol):
@@ -35,6 +39,7 @@ class Scraper:
         result = await self._scheduler.crawl(seed_urls)
 
         if result.pages:
+            logger.info("Persisting %d extracted page(s)", len(result.pages))
             await self._repository.save_many(result.pages)
 
         return result

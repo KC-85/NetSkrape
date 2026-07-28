@@ -1,6 +1,7 @@
 """Command-line interface and application composition."""
 
 import asyncio
+import logging
 from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +14,7 @@ from netskrape.crawling.policies import CrawlPolicy
 from netskrape.crawling.scheduler import CrawlResult, CrawlScheduler
 from netskrape.exceptions import NetSkrapeError
 from netskrape.extraction.parsers import HtmlParser
+from netskrape.logging import configure_logging
 from netskrape.scraper import Scraper
 from netskrape.storage.jsonl import JsonLinesPageRepository
 
@@ -20,6 +22,8 @@ from netskrape.storage.jsonl import JsonLinesPageRepository
 SUCCESS = 0
 RUNTIME_ERROR = 1
 PARTIAL_FAILURE = 3
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -105,6 +109,15 @@ async def _run_crawl(
     config = replace(
         ScraperConfig.from_env(),
         max_concurrency=workers,
+    )
+    configure_logging(config.log_level)
+    logger.info(
+        "Starting crawl with %d seed(s), %d worker(s), "
+        "maximum %d page(s), and depth %d",
+        len(seed_urls),
+        workers,
+        max_pages,
+        max_depth,
     )
     crawl_policy = CrawlPolicy(
         allowed_domains=allowed_domains,

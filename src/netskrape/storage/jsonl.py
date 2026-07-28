@@ -2,12 +2,16 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 from netskrape.exceptions import StorageError
 from netskrape.extraction.models import ExtractedLink, ExtractedPage
+
+
+logger = logging.getLogger(__name__)
 
 
 class JsonLinesPageRepository:
@@ -52,6 +56,11 @@ class JsonLinesPageRepository:
                 raise StorageError(
                     f"Could not write crawl output to {self._path}: {error}"
                 ) from error
+        logger.info(
+            "Appended %d page record(s) to %s",
+            len(lines),
+            self._path,
+        )
 
     def _append_lines(self, lines: tuple[str, ...]) -> None:
         """Perform one locked append operation."""

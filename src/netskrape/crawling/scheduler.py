@@ -1,6 +1,7 @@
 """Asynchronous crawl scheduling and traversal."""
 
 import asyncio
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
@@ -9,6 +10,10 @@ from urllib.parse import urldefrag
 import httpx
 
 from netskrape.extraction.models import ExtractedPage
+from netskrape.logging import safe_url
+
+
+logger = logging.getLogger(__name__)
 
 
 class PageClient(Protocol):
@@ -127,6 +132,8 @@ class CrawlScheduler:
                 raise TypeError("every seed URL must be a string")
             schedule(seed_url, depth=0)
 
+        logger.info("Scheduled %d unique seed URL(s)", queue.qsize())
+
         async def worker() -> None:
             while True:
                 item = await queue.get()
@@ -141,6 +148,12 @@ class CrawlScheduler:
                         )
                         page = self._parser.parse(response)
                     except Exception as error:
+                        logger.warning(
+                            "Crawl failed for %s at depth %d: %s",
+                            safe_url(item.url),
+                            item.depth,
+                            type(error).__name__,
+                        )
                         failures.append(
                             CrawlFailure(
                                 url=item.url,
@@ -174,10 +187,16 @@ class CrawlScheduler:
                 queue.put_nowait(_STOP)
             await asyncio.gather(*workers)
 
-        return CrawlResult(
+        result = CrawlResult(
             pages=tuple(pages),
             failures=tuple(failures),
         )
+        logger.info(
+            "Crawl finished with %d page(s) and %d failure(s)",
+            len(result.pages),
+            len(result.failures),
+        )
+        return result
 
     @staticmethod
     def _normalize_url(url: str) -> str:
