@@ -19,3 +19,19 @@ src/netskrape/
 Tests are separated into fast unit tests, integration tests, and reusable
 fixtures. Copy `.env.example` to `.env` for local configuration; never commit
 the resulting `.env` file.
+
+## Command line
+
+Run a crawl and append normalized pages to a JSON Lines file:
+
+```bash
+netskrape crawl https://example.com \
+  --output netskrape-results.jsonl \
+  --max-pages 100 \
+  --max-depth 3 \
+  --workers 5
+```
+
+Discovered links are restricted to the seed domains by default. The command
+returns exit code `0` for complete success, `1` for a runtime failure, `2` for
+invalid usage, and `3` when the crawl completes with one or more page failures.
