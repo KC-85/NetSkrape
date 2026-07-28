@@ -32,5 +32,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 asyncio_mode = "auto"
+markers = [
+    "integration: exercises multiple application components together",
+]
 pythonpath = ["src"]
 testpaths = ["tests"]
