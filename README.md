@@ -32,6 +32,16 @@ netskrape crawl https://example.com \
   --workers 5
 ```
 
+To retain historical snapshots in SQLite instead:
+
+```bash
+netskrape crawl https://example.com \
+  --database netskrape.db \
+  --max-pages 100 \
+  --max-depth 3 \
+  --workers 5
+```
+
 Discovered links are restricted to the seed domains by default. The command
 returns exit code `0` for complete success, `1` for a runtime failure, `2` for
 invalid usage, and `3` when the crawl completes with one or more page failures.
