@@ -1,6 +1,142 @@
-"""Command-line interface for NetSkrape."""
+"""Command-line interface and application composition."""
+
+import asyncio
+from dataclasses import replace
+from pathlib import Path
+from urllib.parse import urlparse
+
+import click
+
+from netskrape.config import ScraperConfig
+from netskrape.crawling.client import ScraperClient
+from netskrape.crawling.policies import CrawlPolicy
+from netskrape.crawling.scheduler import CrawlResult, CrawlScheduler
+from netskrape.exceptions import NetSkrapeError
+from netskrape.extraction.parsers import HtmlParser
+from netskrape.scraper import Scraper
+from netskrape.storage.jsonl import JsonLinesPageRepository
 
 
+SUCCESS = 0
+RUNTIME_ERROR = 1
+PARTIAL_FAILURE = 3
+
+
+@click.group()
 def main() -> None:
-    """Run the NetSkrape command-line interface."""
-    return None
+    """Crawl web pages safely and save normalized results."""
+
+
+@main.command()
+@click.argument("seed_urls", nargs=-1, required=True)
+@click.option(
+    "--output",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=Path("netskrape-results.jsonl"),
+    show_default=True,
+    help="Append extracted pages to this JSON Lines file.",
+)
+@click.option(
+    "--max-pages",
+    type=click.IntRange(min=1),
+    default=100,
+    show_default=True,
+)
+@click.option(
+    "--max-depth",
+    type=click.IntRange(min=0),
+    default=3,
+    show_default=True,
+)
+@click.option(
+    "--workers",
+    type=click.IntRange(min=1),
+    default=5,
+    show_default=True,
+)
+def crawl(
+    seed_urls: tuple[str, ...],
+    output: Path,
+    max_pages: int,
+    max_depth: int,
+    workers: int,
+) -> None:
+    """Crawl one or more SEED_URLS and persist successful pages."""
+    try:
+        result = asyncio.run(
+            _run_crawl(
+                seed_urls,
+                output=output,
+                max_pages=max_pages,
+                max_depth=max_depth,
+                workers=workers,
+            )
+        )
+    except (NetSkrapeError, OSError, ValueError) as error:
+        raise click.ClickException(str(error)) from error
+
+    click.echo(
+        f"Crawl complete: {len(result.pages)} page(s), "
+        f"{len(result.failures)} failure(s)."
+    )
+    if result.pages:
+        click.echo(f"Results appended to {output}.")
+    for failure in result.failures:
+        click.echo(
+            f"{failure.url} [{failure.error_type}]: {failure.error}",
+            err=True,
+        )
+
+    if result.failures:
+        raise click.exceptions.Exit(PARTIAL_FAILURE)
+    raise click.exceptions.Exit(SUCCESS)
+
+
+async def _run_crawl(
+    seed_urls: tuple[str, ...],
+    *,
+    output: Path,
+    max_pages: int,
+    max_depth: int,
+    workers: int,
+) -> CrawlResult:
+    """Construct concrete components and run one crawl."""
+    allowed_domains = _seed_domains(seed_urls)
+    config = replace(
+        ScraperConfig.from_env(),
+        max_concurrency=workers,
+    )
+    crawl_policy = CrawlPolicy(
+        allowed_domains=allowed_domains,
+        max_depth=max_depth,
+    )
+    repository = JsonLinesPageRepository(output)
+
+    async with ScraperClient(
+        config,
+        crawl_policy=crawl_policy,
+    ) as client:
+        scheduler = CrawlScheduler(
+            client,
+            HtmlParser(),
+            worker_count=workers,
+            max_pages=max_pages,
+            max_depth=max_depth,
+        )
+        return await Scraper(scheduler, repository).run(seed_urls)
+
+
+def _seed_domains(seed_urls: tuple[str, ...]) -> frozenset[str]:
+    """Validate seed URLs and return their normalized hostnames."""
+    domains: set[str] = set()
+    for seed_url in seed_urls:
+        parsed = urlparse(seed_url)
+        if (
+            parsed.scheme.lower() not in {"http", "https"}
+            or parsed.hostname is None
+        ):
+            raise ValueError(
+                f"Seed URL must be an absolute HTTP(S) URL: {seed_url}"
+            )
+        domains.add(parsed.hostname.lower().rstrip("."))
+    return frozenset(domains)

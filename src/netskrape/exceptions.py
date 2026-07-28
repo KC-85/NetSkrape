@@ -15,3 +15,7 @@ class FetchError(NetSkrapeError):
 
 class ExtractionError(NetSkrapeError):
     """Raised when retrieved content cannot be extracted."""
+
+
+class StorageError(NetSkrapeError):
+    """Raised when extracted data cannot be persisted."""
