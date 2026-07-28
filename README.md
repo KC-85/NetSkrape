@@ -17,8 +17,8 @@ src/netskrape/
 ```
 
 Tests are separated into fast unit tests, integration tests, and reusable
-fixtures. Copy `.env.example` to `.env` for local configuration; never commit
-the resulting `.env` file.
+fixtures. Use `.env.example` as a reference for environment variables. Export
+those values in your shell or process environment; never commit local secrets.
 
 ## Command line
 
