@@ -41,6 +41,13 @@ def main() -> None:
     help="Append extracted pages to this JSON Lines file.",
 )
 @click.option(
+    "--database",
+    "database_path",
+    type=click.Path(path_type=Path, dir_okay=False),
+    default=None,
+    help="Store pages in this SQLite database instead of JSON Lines.",
+)
+@click.option(
     "--max-pages",
     type=click.IntRange(min=1),
     default=100,
@@ -61,6 +68,7 @@ def main() -> None:
 def crawl(
     seed_urls: tuple[str, ...],
     output: Path,
+    database_path: Path | None,
     max_pages: int,
     max_depth: int,
     workers: int,
@@ -71,6 +79,7 @@ def crawl(
             _run_crawl(
                 seed_urls,
                 output=output,
+                database_path=database_path,
                 max_pages=max_pages,
                 max_depth=max_depth,
                 workers=workers,
@@ -84,7 +93,10 @@ def crawl(
         f"{len(result.failures)} failure(s)."
     )
     if result.pages:
-        click.echo(f"Results appended to {output}.")
+        if database_path is not None:
+            click.echo(f"Results saved to SQLite database {database_path}.")
+        else:
+            click.echo(f"Results appended to {output}.")
     for failure in result.failures:
         click.echo(
             f"{failure.url} [{failure.error_type}]: {failure.error}",
@@ -100,6 +112,7 @@ async def _run_crawl(
     seed_urls: tuple[str, ...],
     *,
     output: Path,
+    database_path: Path | None,
     max_pages: int,
     max_depth: int,
     workers: int,
@@ -123,20 +136,33 @@ async def _run_crawl(
         allowed_domains=allowed_domains,
         max_depth=max_depth,
     )
-    repository = JsonLinesPageRepository(output)
+    database = None
+    if database_path is None:
+        repository = JsonLinesPageRepository(output)
+    else:
+        from netskrape.storage.database import Database
+        from netskrape.storage.sqlalchemy import SQLAlchemyPageRepository
 
-    async with ScraperClient(
-        config,
-        crawl_policy=crawl_policy,
-    ) as client:
-        scheduler = CrawlScheduler(
-            client,
-            HtmlParser(),
-            worker_count=workers,
-            max_pages=max_pages,
-            max_depth=max_depth,
-        )
-        return await Scraper(scheduler, repository).run(seed_urls)
+        database = Database.sqlite(database_path)
+        await database.initialize()
+        repository = SQLAlchemyPageRepository(database)
+
+    try:
+        async with ScraperClient(
+            config,
+            crawl_policy=crawl_policy,
+        ) as client:
+            scheduler = CrawlScheduler(
+                client,
+                HtmlParser(),
+                worker_count=workers,
+                max_pages=max_pages,
+                max_depth=max_depth,
+            )
+            return await Scraper(scheduler, repository).run(seed_urls)
+    finally:
+        if database is not None:
+            await database.dispose()
 
 
 def _seed_domains(seed_urls: tuple[str, ...]) -> frozenset[str]:
