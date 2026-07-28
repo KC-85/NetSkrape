@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -119,10 +118,7 @@ async def _run_crawl(
 ) -> CrawlResult:
     """Construct concrete components and run one crawl."""
     allowed_domains = _seed_domains(seed_urls)
-    config = replace(
-        ScraperConfig.from_env(),
-        max_concurrency=workers,
-    )
+    config = ScraperConfig.from_env()
     configure_logging(config.log_level)
     logger.info(
         "Starting crawl with %d seed(s), %d worker(s), "
