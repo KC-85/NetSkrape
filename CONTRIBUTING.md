@@ -24,30 +24,22 @@ first.
 
 ## Development setup
 
-Fork or clone the repository, then create an isolated environment:
+Fork or clone the repository, then synchronize the committed environment:
 
 ```bash
 git clone <repository-url>
 cd NetSkrape
 
-python -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
-
-On Windows PowerShell, activate the environment with:
-
-```powershell
-venv\Scripts\Activate.ps1
+python -m pip install "uv>=0.12"
+uv sync --locked
 ```
 
 Confirm the environment:
 
 ```bash
-python --version
-netskrape --help
-pytest
+uv run --locked python --version
+uv run --locked netskrape --help
+uv run --locked pytest
 ```
 
 NetSkrape requires Python 3.12 or newer.
@@ -126,7 +118,7 @@ Follow the existing code style:
 Run linting before submitting:
 
 ```bash
-flake8 --jobs 1 src tests
+uv run --locked flake8 --jobs 1 src tests
 ```
 
 ## Configuration changes
@@ -145,7 +137,8 @@ should receive validated configuration or explicit constructor arguments.
 
 ## Dependency changes
 
-`pyproject.toml` is the authoritative declaration of direct dependencies.
+`pyproject.toml` is the authoritative declaration of direct dependencies, and
+`uv.lock` is the committed exact resolution. Do not edit `uv.lock` manually.
 
 Before adding a package:
 
@@ -154,10 +147,31 @@ Before adding a package:
 - Consider maintenance status, licence compatibility, security history,
   installation size, and supported Python versions.
 - Add runtime dependencies under `[project.dependencies]`.
-- Add development-only tools under `[project.optional-dependencies].dev`.
+- Add development-only tools under `[dependency-groups].dev`.
 - Explain significant dependency additions in the pull request.
 
 Avoid adding transitive dependencies manually.
+
+Use uv to update dependencies and the lockfile together:
+
+```bash
+uv add PACKAGE
+uv add --dev PACKAGE
+uv remove PACKAGE
+```
+
+For a deliberate upgrade:
+
+```bash
+uv lock --upgrade-package PACKAGE
+uv sync
+```
+
+Before committing dependency changes, verify that the lockfile is current:
+
+```bash
+uv lock --check
+```
 
 ## Testing
 
@@ -177,7 +191,7 @@ Unit tests belong in `tests/unit/` and should:
 Run unit tests with:
 
 ```bash
-pytest tests/unit
+uv run --locked pytest tests/unit
 ```
 
 ### Integration tests
@@ -201,13 +215,13 @@ transports, temporary SQLite databases, and deterministic fixtures.
 Run integration tests with:
 
 ```bash
-pytest -m integration
+uv run --locked pytest -m integration
 ```
 
 Run the complete suite with:
 
 ```bash
-pytest
+uv run --locked pytest
 ```
 
 ### Test fixtures
@@ -356,8 +370,9 @@ dependencies, or existing databases?
 
 - [ ] Unit tests added or updated
 - [ ] Integration tests added or updated where appropriate
-- [ ] `pytest` passes
-- [ ] `flake8 --jobs 1 src tests` passes
+- [ ] `uv lock --check` passes
+- [ ] `uv run --locked pytest` passes
+- [ ] `uv run --locked flake8 --jobs 1 src tests` passes
 - [ ] Documentation updated
 ```
 

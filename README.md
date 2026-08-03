@@ -36,36 +36,40 @@ authentication workflows are not implemented yet.
 
 ## Installation
 
-Clone the repository and create a virtual environment:
+Clone the repository and synchronize the locked development environment with
+[`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 git clone <repository-url>
 cd NetSkrape
 
-python -m venv venv
-source venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+python -m pip install "uv>=0.12"
+uv sync --locked
 ```
 
-For local development and testing:
+Run commands in that environment:
 
 ```bash
-python -m pip install -e ".[dev]"
+uv run --locked netskrape --help
+uv run --locked pytest
 ```
 
-Confirm the CLI is available:
+For runtime dependencies without development tools:
 
 ```bash
-netskrape --help
+uv sync --locked --no-dev
 ```
 
-Without an editable installation, commands can be run directly from the source
-tree:
+Playwright is an optional dependency and is not required by the current static
+HTML pipeline. To install the optional Python package:
 
 ```bash
-PYTHONPATH=src python -m netskrape --help
+uv sync --locked --extra browser
 ```
+
+`pyproject.toml` declares direct dependencies. `uv.lock` records the exact
+cross-platform resolution and must be committed. Do not edit `uv.lock`
+manually.
 
 ## Quick start
 
@@ -328,25 +332,45 @@ src/netskrape/
 Run the complete test suite:
 
 ```bash
-pytest
+uv run --locked pytest
 ```
 
 Run only unit tests:
 
 ```bash
-pytest tests/unit
+uv run --locked pytest tests/unit
 ```
 
 Run integration tests:
 
 ```bash
-pytest -m integration
+uv run --locked pytest -m integration
 ```
 
 Run linting:
 
 ```bash
-flake8 --jobs 1 src tests
+uv run --locked flake8 --jobs 1 src tests
+```
+
+Check that dependency metadata and the committed lockfile agree:
+
+```bash
+uv lock --check
+```
+
+Update all locked packages deliberately with:
+
+```bash
+uv lock --upgrade
+uv sync
+uv run pytest
+```
+
+To update one package while retaining all other locked versions:
+
+```bash
+uv lock --upgrade-package PACKAGE
 ```
 
 The integration tests use controlled temporary resources and
